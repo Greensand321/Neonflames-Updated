@@ -328,21 +328,17 @@
      */
     function renderToSize(w, h, history, cb) {
         var scale = exportScale;
-        var offCtx, cleanup;
 
-        if (typeof OffscreenCanvas !== 'undefined') {
-            var oc = new OffscreenCanvas(w, h);
-            offCtx  = oc.getContext('2d');
-            cleanup = function () {};
-        } else {
-            var oc      = document.createElement('canvas');
-            oc.width    = w;
-            oc.height   = h;
-            oc.style.display = 'none';
-            document.body.appendChild(oc);
-            offCtx  = oc.getContext('2d');
-            cleanup = function () { document.body.removeChild(oc); };
-        }
+        // Use a plain HTMLCanvasElement — OffscreenCanvas.toBlob() does not
+        // exist (it uses convertToBlob() with a different async interface).
+        // A hidden canvas is simpler and works reliably across all browsers.
+        var oc      = document.createElement('canvas');
+        oc.width    = w;
+        oc.height   = h;
+        oc.style.display = 'none';
+        document.body.appendChild(oc);
+        var offCtx  = oc.getContext('2d');
+        var cleanup = function () { document.body.removeChild(oc); };
 
         // Background
         offCtx.fillStyle = window.svgBgColor || '#000000';
