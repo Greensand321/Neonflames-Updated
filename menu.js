@@ -226,13 +226,73 @@
             : 'No drawing data yet';
     }
 
+    // ── SVG string builder ───────────────────────────────────────────────────
+    //
+    // THE CRITICAL FIX: mix-blend-mode must NOT be placed on <g> elements.
+    //
+    // When a <g> has mix-blend-mode != normal it creates an *isolated* stacking
+    // context (CSS Compositing spec §9). That means all child circles composite
+    // into an offline buffer using source-over first, then the single buffer is
+    // blended with the backdrop.  source-over on rgb(5,1,1) → rgb(5,1,1) → the
+    // buffer is still near-black → screen-blending it against black = nothing.
+    //
+    // The fix: keep <g> elements free of blend modes (no isolation) and put
+    // mix-blend-mode on every *circle* individually via a CSS class.  Because
+    // the parent <g> has no blend mode it does not isolate, so each circle's
+    // backdrop is the full accumulated content below it — exactly like canvas
+    // globalCompositeOperation = 'lighter'.
+    //
+    // plus-lighter  = exact CSS equivalent of canvas 'lighter' (additive clamp)
+    // screen        = fallback for browsers that don't yet support plus-lighter;
+    //                 visually identical for the very small per-particle values
+    //                 used here (both ≈ additive when src values are small).
+
+    function buildSVGString(history, w, h, bgColor) {
+        var lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<svg xmlns="http://www.w3.org/2000/svg"',
+            '     width="' + w + '" height="' + h + '"',
+            '     viewBox="0 0 ' + w + ' ' + h + '">',
+            // .p  = lighter/glow particles  (per-circle blend, non-isolating parent)
+            // .e  = eraser / source-over    (normal compositing, default)
+            '<style>.p{mix-blend-mode:screen;mix-blend-mode:plus-lighter}</style>',
+            '<rect width="' + w + '" height="' + h + '" fill="' + (bgColor || '#000') + '"/>'
+        ];
+
+        var curFill = null, curComp = null, inGroup = false;
+
+        for (var i = 0; i < history.length; i++) {
+            var p = history[i];
+
+            if (p.c === 'lighter') {
+                // Glow particles: group by fill for compact output.
+                // NO mix-blend-mode on the <g> — that would isolate it!
+                if (p.f !== curFill || curComp !== 'lighter') {
+                    if (inGroup) lines.push('</g>');
+                    lines.push('<g fill="' + p.f + '">');
+                    curFill = p.f; curComp = 'lighter'; inGroup = true;
+                }
+                // class="p" carries mix-blend-mode on the leaf element itself.
+                lines.push('<circle class="p" cx="' + p.x.toFixed(1)
+                           + '" cy="' + p.y.toFixed(1)
+                           + '" r="'  + p.r.toFixed(2) + '"/>');
+            } else {
+                // source-over (eraser, etc.): close any open glow group,
+                // then draw as a plain circle with default compositing.
+                if (inGroup) { lines.push('</g>'); inGroup = false; curFill = null; curComp = null; }
+                lines.push('<circle cx="' + p.x.toFixed(1)
+                           + '" cy="' + p.y.toFixed(1)
+                           + '" r="'  + p.r.toFixed(2)
+                           + '" fill="' + p.f + '"/>');
+            }
+        }
+
+        if (inGroup) lines.push('</g>');
+        lines.push('</svg>');
+        return lines.join('\n');
+    }
+
     // ── SVG export ───────────────────────────────────────────────────────────
-    // Each particle becomes a <circle>. Consecutive particles sharing the same
-    // fill colour and blend mode are grouped under one <g> — this keeps files
-    // compact while preserving exact draw order (important for source-over /
-    // eraser strokes). Canvas 'lighter' maps to SVG mix-blend-mode:screen,
-    // which is visually identical for the very low per-particle colour values
-    // used here (screen ≈ additive when values are small).
 
     function exportSVG() {
         var history = window.svgHistory;
@@ -241,39 +301,9 @@
         }
         showNotification('Building SVG…', true);
 
-        // Give the browser a frame to show the notification before blocking.
         setTimeout(function () {
-            var w = window.logW, h = window.logH;
-            var parts = [
-                '<?xml version="1.0" encoding="UTF-8"?>',
-                '<svg xmlns="http://www.w3.org/2000/svg"',
-                '     width="' + w + '" height="' + h + '"',
-                '     viewBox="0 0 ' + w + ' ' + h + '">',
-                '<rect width="' + w + '" height="' + h + '" fill="' + (window.svgBgColor || '#000') + '"/>'
-            ];
-
-            var curFill = null, curComp = null, inGroup = false;
-
-            for (var i = 0; i < history.length; i++) {
-                var p = history[i];
-                // Canvas 'lighter' → SVG 'screen' (visually identical for low colour values)
-                var blend = p.c === 'lighter'      ? 'screen'
-                          : p.c === 'source-over'  ? 'normal'
-                          : p.c;
-
-                if (p.f !== curFill || p.c !== curComp) {
-                    if (inGroup) parts.push('</g>');
-                    parts.push('<g fill="' + p.f + '" style="mix-blend-mode:' + blend + '">');
-                    curFill = p.f; curComp = p.c; inGroup = true;
-                }
-                parts.push('<circle cx="' + p.x.toFixed(1)
-                           + '" cy="' + p.y.toFixed(1)
-                           + '" r="'  + p.r.toFixed(2) + '"/>');
-            }
-            if (inGroup) parts.push('</g>');
-            parts.push('</svg>');
-
-            var blob = new Blob([parts.join('\n')], {type: 'image/svg+xml'});
+            var svg  = buildSVGString(history, window.logW, window.logH, window.svgBgColor || '#000');
+            var blob = new Blob([svg], {type: 'image/svg+xml'});
             downloadBlob(blob, 'neonflames.svg');
             hideNotification();
             showNotification('SVG saved — ' + history.length.toLocaleString() + ' particles.');
@@ -281,9 +311,14 @@
     }
 
     // ── High-resolution raster export ────────────────────────────────────────
-    // Replays svgHistory onto a temporary offscreen canvas at the target size.
-    // Uses OffscreenCanvas when available (better for large sizes), falls back
-    // to a hidden <canvas>. The live drawing canvas is untouched.
+    //
+    // scale = 1 → grab the live canvas directly (already HiDPI quality).
+    //
+    // scale > 1 → build the SVG string, load it into a temporary <img> via a
+    // Blob URL, then drawImage onto a hidden <canvas> at the target dimensions.
+    // The browser's own SVG renderer handles blend modes at full target
+    // resolution — this is why the output matches what you see on screen and
+    // avoids the "visible blobs" issue of scaling raw particle positions up.
 
     function exportRaster(mimeType) {
         var history = window.svgHistory;
@@ -295,8 +330,7 @@
         var ext  = mimeType === 'image/jpeg' ? 'jpg' : 'png';
         var name = 'neonflames_' + d.w + 'x' + d.h + '.' + ext;
 
-        // For scale=1 (screen size), the physical canvas already contains the
-        // drawing at HiDPI resolution — use it directly for speed.
+        // scale = 1: export the live canvas pixel-for-pixel (fastest path).
         if (exportScale === 1) {
             canvas.toBlob(function (blob) { downloadBlob(blob, name); }, mimeType, 0.92);
             return;
@@ -305,58 +339,42 @@
         showNotification('Rendering ' + d.w.toLocaleString() + ' × ' + d.h.toLocaleString() + '…', true);
 
         setTimeout(function () {
-            try {
-                renderToSize(d.w, d.h, history, function (offCtx, cleanup) {
-                    offCtx.canvas.toBlob(function (blob) {
-                        downloadBlob(blob, name);
-                        cleanup();
-                        hideNotification();
-                        showNotification('Saved ' + d.w.toLocaleString() + ' × ' + d.h.toLocaleString() + ' ' + ext.toUpperCase());
-                    }, mimeType, 0.92);
-                });
-            } catch (err) {
+            var svg     = buildSVGString(history, window.logW, window.logH, window.svgBgColor || '#000');
+            var svgBlob = new Blob([svg], {type: 'image/svg+xml'});
+            var svgUrl  = URL.createObjectURL(svgBlob);
+
+            var img = new Image();
+
+            img.onload = function () {
+                var oc = document.createElement('canvas');
+                oc.width  = d.w;
+                oc.height = d.h;
+                oc.style.display = 'none';
+                document.body.appendChild(oc);
+
+                var octx = oc.getContext('2d');
+                // drawImage renders the SVG at the exact destination dimensions,
+                // letting the browser rasterise at full target resolution with
+                // all blend modes applied correctly.
+                octx.drawImage(img, 0, 0, d.w, d.h);
+                URL.revokeObjectURL(svgUrl);
+
+                oc.toBlob(function (blob) {
+                    downloadBlob(blob, name);
+                    document.body.removeChild(oc);
+                    hideNotification();
+                    showNotification('Saved ' + d.w.toLocaleString() + ' × ' + d.h.toLocaleString() + ' ' + ext.toUpperCase());
+                }, mimeType, 0.92);
+            };
+
+            img.onerror = function () {
+                URL.revokeObjectURL(svgUrl);
                 hideNotification();
-                showNotification('Export failed: ' + err.message);
-                console.error('Hi-res export error:', err);
-            }
+                showNotification('Raster render failed — download the SVG and rasterise in Inkscape / Illustrator.');
+            };
+
+            img.src = svgUrl;
         }, 60);
-    }
-
-    /**
-     * Creates an offscreen canvas of (w × h), replays svgHistory scaled to
-     * fit, then calls cb(ctx, cleanup). cleanup() removes the temporary canvas.
-     */
-    function renderToSize(w, h, history, cb) {
-        var scale = exportScale;
-
-        // Use a plain HTMLCanvasElement — OffscreenCanvas.toBlob() does not
-        // exist (it uses convertToBlob() with a different async interface).
-        // A hidden canvas is simpler and works reliably across all browsers.
-        var oc      = document.createElement('canvas');
-        oc.width    = w;
-        oc.height   = h;
-        oc.style.display = 'none';
-        document.body.appendChild(oc);
-        var offCtx  = oc.getContext('2d');
-        var cleanup = function () { document.body.removeChild(oc); };
-
-        // Background
-        offCtx.fillStyle = window.svgBgColor || '#000000';
-        offCtx.fillRect(0, 0, w, h);
-
-        // Replay particles
-        var curFill = null, curComp = null;
-        for (var i = 0; i < history.length; i++) {
-            var p = history[i];
-            if (p.f !== curFill) { offCtx.fillStyle = p.f; curFill = p.f; }
-            if (p.c !== curComp) { offCtx.globalCompositeOperation = p.c; curComp = p.c; }
-            offCtx.beginPath();
-            offCtx.arc(p.x * scale, p.y * scale, p.r * scale, 0, Math.PI * 2, true);
-            offCtx.closePath();
-            offCtx.fill();
-        }
-
-        cb(offCtx, cleanup);
     }
 
     // ── Blob download helper ─────────────────────────────────────────────────
