@@ -184,9 +184,40 @@
     <!-- Export -->
     <div class="panel-section">
       <h3 class="section-title">EXPORT</h3>
+
+      <!-- Resolution scale -->
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Resolution Scale</label>
+        </div>
+        <select id="export-scale" style="width:100%;margin-bottom:6px;">
+          <option value="1">1× — Screen size</option>
+          <option value="2" selected>2× — ~4K</option>
+          <option value="4">4× — ~8K</option>
+          <option value="6">6× — ~12K</option>
+          <option value="8">8× — ~16K</option>
+        </select>
+        <div id="export-dims" class="export-dims">— × — px</div>
+        <div id="export-warning" class="export-warn"></div>
+        <p class="hint">PNG &amp; JPEG replay your stroke history onto an offscreen canvas at the chosen size. SVG is always infinite-resolution vector.</p>
+      </div>
+
+      <!-- Raster exports -->
       <div class="btn-col">
-        <button id="download-png-btn"  class="btn-neon btn-full">Download PNG</button>
-        <button id="download-jpeg-btn" class="btn-neon btn-full">Download JPEG</button>
+        <button id="download-png-btn"  class="btn-neon btn-full">&#8595; Download PNG</button>
+        <button id="download-jpeg-btn" class="btn-neon btn-full">&#8595; Download JPEG</button>
+      </div>
+
+      <!-- SVG export -->
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,200,255,0.1);">
+        <button id="download-svg-btn" class="btn-svg btn-full">&#10022; Export SVG (vector)</button>
+        <p class="hint" style="margin-top:6px;">True vector — scalable to any size. Opens in Illustrator, Inkscape, Figma. Blend mode uses <em>screen</em> (visually identical to <em>lighter</em> for these colour values).</p>
+      </div>
+
+      <!-- Recording status -->
+      <div class="recording-row">
+        <span id="particle-count" class="particle-count">No drawing data yet</span>
+        <button id="reset-svg-btn" class="btn-ghost" title="Reset recording without clearing the canvas">&#8635; Reset</button>
       </div>
     </div>
 
