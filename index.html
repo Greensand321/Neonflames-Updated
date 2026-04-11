@@ -21,31 +21,31 @@
 <!-- ── Colour swatches ────────────────────────────────────────────────────── -->
 <ul id="colors">
   <li style="background-color: rgb(160, 10, 10)"  class="active"
-      onclick="color='rgb(5, 1, 1)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=1.0;colorG=0.1;colorB=0.1;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Red"></li>
   <li style="background-color: rgb(40, 200, 20)"
-      onclick="color='rgb(2, 6, 1)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=0.1;colorG=1.2;colorB=0.1;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Green"></li>
   <li style="background-color: rgb(10, 10, 160)"
-      onclick="color='rgb(1, 2, 8)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=0.1;colorG=0.2;colorB=1.5;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Blue"></li>
   <li style="background-color: rgb(200, 150, 50)"
-      onclick="color='rgb(4, 3, 1)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=1.2;colorG=0.8;colorB=0.1;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Gold"></li>
   <li style="background-color: rgb(140, 30, 180)"
-      onclick="color='rgb(3, 1, 4)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=0.7;colorG=0.1;colorB=1.0;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Purple"></li>
   <li style="background-color: rgb(20, 180, 160)"
-      onclick="color='rgb(1, 4, 3)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=0.1;colorG=1.0;colorB=0.7;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Cyan"></li>
   <li style="background-color: rgb(220, 60, 120)"
-      onclick="color='rgb(5, 1, 2)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=1.2;colorG=0.1;colorB=0.5;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Pink"></li>
   <li style="background-color: rgb(255, 255, 255)"
-      onclick="color='rgb(3, 3, 3)';composite='lighter';lineWidth=1.0;"
+      onclick="isEraser=false;colorR=0.8;colorG=0.8;colorB=0.8;colorIntensity=1.0;composite='lighter';lineWidth=1.0;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="White"></li>
   <li style="background-color: #111; border-color: #555;"
-      onclick="color='rgba(0,0,0,0.6)';composite='source-over';lineWidth=0.1;"
+      onclick="isEraser=true;composite='source-over';lineWidth=0.1;if(typeof syncColorSlidersToSwatch==='function')syncColorSlidersToSwatch();"
       title="Eraser">&#9003;</li>
 </ul>
 
@@ -80,19 +80,54 @@
     <!-- Brush colour -->
     <div class="panel-section">
       <h3 class="section-title">BRUSH COLOUR</h3>
-      <div class="form-row color-row">
-        <label>Colour</label>
-        <input type="color" id="custom-color" value="#ff2200" />
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Red</label>
+          <span id="color-r-val" class="slider-val">1.00</span>
+        </div>
+        <input type="range" id="color-r" min="0" max="2" value="1" step="0.05" />
+        <div class="slider-hints"><span>0</span><span>2</span></div>
       </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Green</label>
+          <span id="color-g-val" class="slider-val">0.10</span>
+        </div>
+        <input type="range" id="color-g" min="0" max="2" value="0.1" step="0.05" />
+        <div class="slider-hints"><span>0</span><span>2</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Blue</label>
+          <span id="color-b-val" class="slider-val">0.10</span>
+        </div>
+        <input type="range" id="color-b" min="0" max="2" value="0.1" step="0.05" />
+        <div class="slider-hints"><span>0</span><span>2</span></div>
+      </div>
+
       <div class="slider-group">
         <div class="slider-label-row">
           <label>Intensity</label>
-          <span id="intensity-val" class="slider-val">5</span>
+          <span id="color-intensity-val" class="slider-val">1.0</span>
         </div>
-        <input type="range" id="color-intensity" min="1" max="20" value="5" step="1" />
-        <div class="slider-hints"><span>Subtle</span><span>Intense</span></div>
-        <p class="hint">Controls how much colour each particle adds. Low = smoky, high = vivid.</p>
+        <input type="range" id="color-intensity" min="0.1" max="5" value="1" step="0.1" />
+        <div class="slider-hints"><span>Subtle</span><span>Vivid</span></div>
+        <p class="hint">Scales all channels — how much glow each particle adds.</p>
       </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Exposure</label>
+          <span id="exposure-val" class="slider-val">1.0</span>
+        </div>
+        <input type="range" id="exposure" min="0.1" max="4" value="1" step="0.1" />
+        <div class="slider-hints"><span>0.1 (dim)</span><span>4 (bright)</span></div>
+        <p class="hint">Secondary brightness multiplier on top of intensity.</p>
+      </div>
+
       <div class="form-row">
         <label>Blend Mode</label>
         <select id="blend-mode">
@@ -111,7 +146,7 @@
 
       <div class="slider-group">
         <div class="slider-label-row">
-          <label>Emission Rate</label>
+          <label>Spawn Rate</label>
           <span id="emission-rate-val" class="slider-val">10</span>
         </div>
         <input type="range" id="emission-rate" min="1" max="50" value="10" step="1" />
@@ -121,12 +156,32 @@
 
       <div class="slider-group">
         <div class="slider-label-row">
-          <label>Initial Velocity</label>
-          <span id="init-velocity-val" class="slider-val">10.0</span>
+          <label>Initial DX Velocity</label>
+          <span id="init-dx-val" class="slider-val">10.0</span>
         </div>
-        <input type="range" id="init-velocity" min="1" max="30" value="10" step="0.5" />
-        <div class="slider-hints"><span>1</span><span>30</span></div>
-        <p class="hint">How fast particles burst out when spawned.</p>
+        <input type="range" id="init-dx" min="0" max="30" value="10" step="0.5" />
+        <div class="slider-hints"><span>0 (still)</span><span>30 (fast)</span></div>
+        <p class="hint">Random horizontal burst speed range (±DX).</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Initial DY Velocity</label>
+          <span id="init-dy-val" class="slider-val">10.0</span>
+        </div>
+        <input type="range" id="init-dy" min="0" max="30" value="10" step="0.5" />
+        <div class="slider-hints"><span>0 (still)</span><span>30 (fast)</span></div>
+        <p class="hint">Random vertical burst speed range (±DY).</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Fuzz</label>
+          <span id="fuzz-val" class="slider-val">1.0</span>
+        </div>
+        <input type="range" id="fuzz" min="0" max="10" value="1" step="0.1" />
+        <div class="slider-hints"><span>0 (clean)</span><span>10 (noisy)</span></div>
+        <p class="hint">Extra random jitter added to initial particle velocity.</p>
       </div>
 
       <div class="slider-group">
@@ -141,20 +196,20 @@
 
       <div class="slider-group">
         <div class="slider-label-row">
-          <label>Turbulence</label>
-          <span id="noise-strength-val" class="slider-val">4.0</span>
+          <label>Noise</label>
+          <span id="noise-strength-val" class="slider-val">1.0</span>
         </div>
-        <input type="range" id="noise-strength" min="0" max="20" value="4" step="0.5" />
-        <div class="slider-hints"><span>0 (straight)</span><span>20 (chaotic)</span></div>
+        <input type="range" id="noise-strength" min="0" max="5" value="1" step="0.1" />
+        <div class="slider-hints"><span>0 (straight)</span><span>5 (chaotic)</span></div>
         <p class="hint">Strength of the Perlin noise field steering particles.</p>
       </div>
 
       <div class="slider-group">
         <div class="slider-label-row">
-          <label>Particle Lifetime</label>
-          <span id="max-age-val" class="slider-val">100</span>
+          <label>Max Age</label>
+          <span id="max-age-val" class="slider-val">70</span>
         </div>
-        <input type="range" id="max-age" min="10" max="500" value="100" step="10" />
+        <input type="range" id="max-age" min="10" max="500" value="70" step="5" />
         <div class="slider-hints"><span>10</span><span>500</span></div>
         <p class="hint">Frames a particle lives before vanishing.</p>
       </div>

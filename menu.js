@@ -6,34 +6,44 @@
     // ── Built-in presets ────────────────────────────────────────────────────
     var BUILTIN_PRESETS = {
         'Default': {
-            color: 'rgb(12, 2, 2)', composite: 'lighter', lineWidth: 1.0,
-            max_age: 100, emissionRate: 10, initVelocity: 10.0,
-            damping: 0.8, noiseStrength: 4.0, particleSize: 0.5,
-            displayColor: '#ff2200', colorIntensity: 5
+            colorR: 1.0, colorG: 0.1, colorB: 0.1,
+            colorIntensity: 1.0, exposure: 1.0,
+            composite: 'lighter', lineWidth: 1.0,
+            max_age: 70, emissionRate: 10,
+            initDXVelocity: 10.0, initDYVelocity: 10.0, fuzz: 1.0,
+            damping: 0.8, noiseStrength: 1.0, particleSize: 0.5
         },
         'Wispy Smoke': {
-            color: 'rgb(3, 3, 4)', composite: 'lighter', lineWidth: 1.0,
-            max_age: 300, emissionRate: 4, initVelocity: 4.0,
-            damping: 0.95, noiseStrength: 2.0, particleSize: 0.8,
-            displayColor: '#8899ff', colorIntensity: 3
+            colorR: 0.6, colorG: 0.7, colorB: 1.0,
+            colorIntensity: 0.5, exposure: 0.8,
+            composite: 'lighter', lineWidth: 1.0,
+            max_age: 300, emissionRate: 4,
+            initDXVelocity: 4.0, initDYVelocity: 4.0, fuzz: 0.5,
+            damping: 0.95, noiseStrength: 0.5, particleSize: 0.8
         },
         'Explosive': {
-            color: 'rgb(8, 3, 1)', composite: 'lighter', lineWidth: 1.0,
-            max_age: 60, emissionRate: 30, initVelocity: 20.0,
-            damping: 0.6, noiseStrength: 8.0, particleSize: 0.5,
-            displayColor: '#ff6600', colorIntensity: 8
+            colorR: 1.5, colorG: 0.5, colorB: 0.1,
+            colorIntensity: 2.0, exposure: 1.5,
+            composite: 'lighter', lineWidth: 1.0,
+            max_age: 60, emissionRate: 30,
+            initDXVelocity: 20.0, initDYVelocity: 20.0, fuzz: 3.0,
+            damping: 0.6, noiseStrength: 2.0, particleSize: 0.5
         },
         'Cosmic Dust': {
-            color: 'rgb(2, 1, 6)', composite: 'lighter', lineWidth: 1.0,
-            max_age: 400, emissionRate: 6, initVelocity: 6.0,
-            damping: 0.92, noiseStrength: 3.0, particleSize: 1.2,
-            displayColor: '#aa44ff', colorIntensity: 3
+            colorR: 0.4, colorG: 0.1, colorB: 1.5,
+            colorIntensity: 0.6, exposure: 0.8,
+            composite: 'lighter', lineWidth: 1.0,
+            max_age: 400, emissionRate: 6,
+            initDXVelocity: 6.0, initDYVelocity: 6.0, fuzz: 0.5,
+            damping: 0.92, noiseStrength: 0.6, particleSize: 1.2
         },
         'Electric Arc': {
-            color: 'rgb(1, 4, 8)', composite: 'lighter', lineWidth: 1.0,
-            max_age: 40, emissionRate: 20, initVelocity: 18.0,
-            damping: 0.7, noiseStrength: 12.0, particleSize: 0.3,
-            displayColor: '#00ccff', colorIntensity: 7
+            colorR: 0.1, colorG: 0.7, colorB: 1.5,
+            colorIntensity: 1.5, exposure: 1.2,
+            composite: 'lighter', lineWidth: 1.0,
+            max_age: 40, emissionRate: 20,
+            initDXVelocity: 18.0, initDYVelocity: 18.0, fuzz: 2.0,
+            damping: 0.7, noiseStrength: 2.5, particleSize: 0.3
         }
     };
 
@@ -118,34 +128,67 @@
     // ── Settings get / apply ─────────────────────────────────────────────────
     function getCurrentSettings() {
         return {
-            color: window.color, composite: window.composite,
-            lineWidth: window.lineWidth, max_age: window.max_age,
-            emissionRate: window.emissionRate, initVelocity: window.initVelocity,
-            damping: window.damping, noiseStrength: window.noiseStrength,
-            particleSize: window.particleSize,
-            displayColor: document.getElementById('custom-color').value,
-            colorIntensity: parseInt(document.getElementById('color-intensity').value, 10)
+            colorR:         window.colorR,         colorG:    window.colorG,
+            colorB:         window.colorB,         colorIntensity: window.colorIntensity,
+            exposure:       window.exposure,
+            composite:      window.composite,      lineWidth: window.lineWidth,
+            max_age:        window.max_age,         emissionRate: window.emissionRate,
+            initDXVelocity: window.initDXVelocity, initDYVelocity: window.initDYVelocity,
+            fuzz:           window.fuzz,
+            damping:        window.damping,         noiseStrength: window.noiseStrength,
+            particleSize:   window.particleSize
         };
     }
+
+    function def(v, fallback) { return v !== undefined ? v : fallback; }
+
     function applySettings(s) {
-        window.color         = s.color;
-        window.composite     = s.composite      !== undefined ? s.composite      : 'lighter';
-        window.lineWidth     = s.lineWidth       !== undefined ? s.lineWidth       : 1.0;
-        window.max_age       = s.max_age         !== undefined ? s.max_age         : 100;
-        window.emissionRate  = s.emissionRate    !== undefined ? s.emissionRate    : 10;
-        window.initVelocity  = s.initVelocity    !== undefined ? s.initVelocity    : 10.0;
-        window.damping       = s.damping         !== undefined ? s.damping         : 0.8;
-        window.noiseStrength = s.noiseStrength   !== undefined ? s.noiseStrength   : 4.0;
-        window.particleSize  = s.particleSize    !== undefined ? s.particleSize    : 0.5;
-        if (s.displayColor)   setEl('custom-color', s.displayColor);
-        if (s.colorIntensity) { setEl('color-intensity', s.colorIntensity); setEl('intensity-val', s.colorIntensity, true); }
-        setEl('blend-mode', s.composite || 'lighter');
-        setSlider('emission-rate',  window.emissionRate,  0);
-        setSlider('init-velocity',  window.initVelocity,  1);
-        setSlider('damping',        window.damping,        2);
+        // Support old saved profiles that used a `color` string + `initVelocity`.
+        // Derive channel values by reverse-engineering the old rgb string.
+        if (s.color && s.colorR === undefined) {
+            var m = s.color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+            if (m) {
+                var base = Math.max(+m[1], +m[2], +m[3]) || 1;
+                s.colorR = +m[1] / base; s.colorG = +m[2] / base; s.colorB = +m[3] / base;
+                s.colorIntensity = base / 5;
+            }
+        }
+        if (s.initVelocity !== undefined && s.initDXVelocity === undefined) {
+            s.initDXVelocity = s.initVelocity;
+            s.initDYVelocity = s.initVelocity;
+        }
+
+        window.colorR         = def(s.colorR,         1.0);
+        window.colorG         = def(s.colorG,         0.1);
+        window.colorB         = def(s.colorB,         0.1);
+        window.colorIntensity = def(s.colorIntensity, 1.0);
+        window.exposure       = def(s.exposure,       1.0);
+        window.composite      = def(s.composite,      'lighter');
+        window.lineWidth      = def(s.lineWidth,      1.0);
+        window.max_age        = def(s.max_age,        70);
+        window.emissionRate   = def(s.emissionRate,   10);
+        window.initDXVelocity = def(s.initDXVelocity, 10.0);
+        window.initDYVelocity = def(s.initDYVelocity, 10.0);
+        window.fuzz           = def(s.fuzz,           1.0);
+        window.damping        = def(s.damping,        0.8);
+        window.noiseStrength  = def(s.noiseStrength,  1.0);
+        window.particleSize   = def(s.particleSize,   0.5);
+        window.isEraser       = false;
+
+        setEl('blend-mode', window.composite);
+        setSlider('color-r',       window.colorR,         2);
+        setSlider('color-g',       window.colorG,         2);
+        setSlider('color-b',       window.colorB,         2);
+        setSlider('color-intensity', window.colorIntensity, 1);
+        setSlider('exposure',      window.exposure,        1);
+        setSlider('emission-rate', window.emissionRate,    0);
+        setSlider('init-dx',       window.initDXVelocity,  1);
+        setSlider('init-dy',       window.initDYVelocity,  1);
+        setSlider('fuzz',          window.fuzz,            1);
+        setSlider('damping',       window.damping,         2);
         setSlider('noise-strength', window.noiseStrength,  1);
-        setSlider('max-age',        window.max_age,        0);
-        setSlider('particle-size',  window.particleSize,   2);
+        setSlider('max-age',       window.max_age,         0);
+        setSlider('particle-size', window.particleSize,    2);
         document.querySelectorAll('#colors li').forEach(function (li) { li.classList.remove('active'); });
     }
     function setEl(id, val, isText) {
@@ -158,21 +201,16 @@
         setEl(id + '-val', parseFloat(value).toFixed(decimals), true);
     }
 
-    // ── Custom colour picker ─────────────────────────────────────────────────
-    function applyCustomColor() {
-        var hex = document.getElementById('custom-color').value;
-        var intensity = parseInt(document.getElementById('color-intensity').value, 10);
-        var r = parseInt(hex.slice(1, 3), 16),
-            g = parseInt(hex.slice(3, 5), 16),
-            b = parseInt(hex.slice(5, 7), 16);
-        window.color     = 'rgb(' + Math.max(1, Math.round(r * intensity / 255)) + ', '
-                                  + Math.round(g * intensity / 255) + ', '
-                                  + Math.round(b * intensity / 255) + ')';
-        window.composite = 'lighter';
-        window.lineWidth = 1.0;
-        document.querySelectorAll('#colors li').forEach(function (li) { li.classList.remove('active'); });
-    }
-    window.syncColorPickerToSwatch = function () { /* swatch onclick sets window.color directly */ };
+    // ── Swatch ↔ panel colour sync ───────────────────────────────────────────
+
+    /** Called by swatch onclicks to push the new channel values into the panel sliders. */
+    window.syncColorSlidersToSwatch = function () {
+        setSlider('color-r',         window.colorR,         2);
+        setSlider('color-g',         window.colorG,         2);
+        setSlider('color-b',         window.colorB,         2);
+        setSlider('color-intensity', window.colorIntensity, 1);
+        setSlider('exposure',        window.exposure,       1);
+    };
 
     // ── Slider helper ────────────────────────────────────────────────────────
     function bindSlider(id, decimals, setter) {
@@ -426,7 +464,10 @@
                     var fr    = traj[fi];
                     var sc    = getSC(fr.c);
                     var ns    = fr.ns * scale;
-                    var iv    = fr.iv * scale;
+                    // Handle both new (idx/idy/fz) and old (iv) trajectory formats
+                    var idx   = (fr.idx !== undefined ? fr.idx : fr.iv) * scale;
+                    var idy   = (fr.idy !== undefined ? fr.idy : fr.iv) * scale;
+                    var fz    = (fr.fz  !== undefined ? fr.fz  : 0)     * scale;
                     var emit  = Math.round(fr.er * scale);
                     var fx    = fr.x * scale, fy = fr.y * scale;
                     var cp    = fr.cp || 'lighter';
@@ -434,8 +475,8 @@
                     // Spawn this frame's particles
                     for (var j = 0; j < emit; j++) {
                         sim.push({
-                            vx: (Math.random() - 0.5) * iv * 2,
-                            vy: (Math.random() - 0.5) * iv * 2,
+                            vx: (Math.random() - 0.5) * idx * 2 + (Math.random() - 0.5) * fz * 2,
+                            vy: (Math.random() - 0.5) * idy * 2 + (Math.random() - 0.5) * fz * 2,
                             x: fx, y: fy, age: 0,
                             ma: fr.ma, damp: fr.d, ns: ns,
                             c: sc, cp: cp,
@@ -564,25 +605,28 @@
         document.getElementById('load-profile-btn').addEventListener('click', loadProfile);
         document.getElementById('delete-profile-btn').addEventListener('click', deleteProfile);
 
-        // Colour picker + intensity
-        document.getElementById('custom-color').addEventListener('input', applyCustomColor);
-        document.getElementById('color-intensity').addEventListener('input', function () {
-            document.getElementById('intensity-val').textContent = this.value;
-            applyCustomColor();
-        });
+        // Colour channel sliders
+        bindSlider('color-r',         2, function (v) { window.colorR         = v; });
+        bindSlider('color-g',         2, function (v) { window.colorG         = v; });
+        bindSlider('color-b',         2, function (v) { window.colorB         = v; });
+        bindSlider('color-intensity', 1, function (v) { window.colorIntensity = v; });
+        bindSlider('exposure',        1, function (v) { window.exposure       = v; });
 
         // Blend mode
         document.getElementById('blend-mode').addEventListener('change', function () {
             window.composite = this.value;
+            window.isEraser  = false;
         });
 
         // Physics sliders
-        bindSlider('emission-rate',  0, function (v) { window.emissionRate  = Math.round(v); });
-        bindSlider('init-velocity',  1, function (v) { window.initVelocity  = v; });
-        bindSlider('damping',        2, function (v) { window.damping       = v; });
-        bindSlider('noise-strength', 1, function (v) { window.noiseStrength = v; });
-        bindSlider('max-age',        0, function (v) { window.max_age       = Math.round(v); });
-        bindSlider('particle-size',  2, function (v) { window.particleSize  = v; });
+        bindSlider('emission-rate', 0, function (v) { window.emissionRate   = Math.round(v); });
+        bindSlider('init-dx',       1, function (v) { window.initDXVelocity = v; });
+        bindSlider('init-dy',       1, function (v) { window.initDYVelocity = v; });
+        bindSlider('fuzz',          1, function (v) { window.fuzz           = v; });
+        bindSlider('damping',       2, function (v) { window.damping        = v; });
+        bindSlider('noise-strength',1, function (v) { window.noiseStrength  = v; });
+        bindSlider('max-age',       0, function (v) { window.max_age        = Math.round(v); });
+        bindSlider('particle-size', 2, function (v) { window.particleSize   = v; });
 
         // Canvas controls
         document.getElementById('clear-canvas-btn').addEventListener('click', function () {
