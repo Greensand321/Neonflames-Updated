@@ -1,69 +1,240 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>29a.ch - Neonflames</title>
+<title>Neonflames</title>
 <link rel="stylesheet" href="art_neon.css" />
-<link href='http://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
-<meta name="viewport" content="width=device-width, user-scalable=no,maximum-scale=1.0" />
+<link href='https://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
+<meta name="viewport" content="width=device-width, user-scalable=no, maximum-scale=1.0" />
 </head>
 <body>
-  <h1><a href="http://29a.ch/">29a.ch</a></h1>
-  <p><a href="http://29a.ch/experiments/">More Experiments &amp; Toys</a></p>
-<div id="social">
-  <a href="http://twitter.com/share" class="twitter-share-button"
-    data-url="http://29a.ch/sandbox/2011/neonfuzz/"
-    data-text="Neon flames is a crazy online HTML5 drawing tool."
-    data-count="horizontal" data-via="29a_ch">Tweet</a>
-  <iframe
-    src="http://www.facebook.com/plugins/like.php?href=http%3A%2F%2F29a.ch%2Fsandbox%2F2011%2Fneonfuzz%2F&amp;layout=button_count&amp;show_faces=true&amp;width=450&amp;action=like&amp;font&amp;colorscheme=light&amp;height=21"
-    scrolling="no" frameborder="0" style="border:none; overflow:hidden; width:90px;height:20px;" allowTransparency="true"></iframe>
- <div class="g-plusone" data-size="medium"
-   data-href="http://29a.ch/sandbox/2011/neonflames/" data-count="true"></div>
-</div> 
 
+<!-- ── Top toolbar ────────────────────────────────────────────────────────── -->
+<div id="toolbar">
+  <span id="toolbar-title">NEONFLAMES</span>
+  <div id="toolbar-actions">
+    <a href="#" class="tb-btn" id="tb-clear"    onclick="window.clear(); return false;">&#10006; Clear</a>
+    <a href="#" class="tb-btn" id="tb-download" onclick="window.downloadJPEG(); return false;">&#8595; Save</a>
+    <button id="menu-toggle" title="Settings">&#9776; Settings</button>
+  </div>
+</div>
+
+<!-- ── Colour swatches ────────────────────────────────────────────────────── -->
 <ul id="colors">
-  <li style="background-color: rgb(160, 10, 10)" class="active"
-    onclick="color='rgb(5, 1, 1)';composite='lighter';lineWidth=1.0;"></li>
+  <li style="background-color: rgb(160, 10, 10)"  class="active"
+      onclick="color='rgb(5, 1, 1)';composite='lighter';lineWidth=1.0;"
+      title="Red"></li>
   <li style="background-color: rgb(40, 200, 20)"
-    onclick="color='rgb(2, 6, 1)';composite='lighter';lineWidth=1.0;"></li>
-  <li style="background-color: rgb(10, 10, 80)"
-    onclick="color='rgb(1, 2, 8)';composite='lighter';lineWidth=1.0;"></li>
+      onclick="color='rgb(2, 6, 1)';composite='lighter';lineWidth=1.0;"
+      title="Green"></li>
+  <li style="background-color: rgb(10, 10, 160)"
+      onclick="color='rgb(1, 2, 8)';composite='lighter';lineWidth=1.0;"
+      title="Blue"></li>
   <li style="background-color: rgb(200, 150, 50)"
-    onclick="color='rgb(4, 3, 1)';composite='lighter';lineWidth=1.0;"></li>
-  <li style="background-color: rgb(75, 25, 100)"
-    onclick="color='rgb(3, 1, 4)';composite='lighter';lineWidth=1.0;"></li>
-  <li style="background-color: rgb(25, 100, 75)"
-    onclick="color='rgb(1, 4, 3)';composite='lighter';lineWidth=1.0;"></li>
-  <li style="background-color: #000"
-    onclick="color='rgba(0, 0, 0, 0.6);';composite='source-over';lineWidth=0.1;;"></li>
+      onclick="color='rgb(4, 3, 1)';composite='lighter';lineWidth=1.0;"
+      title="Gold"></li>
+  <li style="background-color: rgb(140, 30, 180)"
+      onclick="color='rgb(3, 1, 4)';composite='lighter';lineWidth=1.0;"
+      title="Purple"></li>
+  <li style="background-color: rgb(20, 180, 160)"
+      onclick="color='rgb(1, 4, 3)';composite='lighter';lineWidth=1.0;"
+      title="Cyan"></li>
+  <li style="background-color: rgb(220, 60, 120)"
+      onclick="color='rgb(5, 1, 2)';composite='lighter';lineWidth=1.0;"
+      title="Pink"></li>
   <li style="background-color: rgb(255, 255, 255)"
-    onclick="color='rgb(3, 3, 3)';composite='lighter';lineWidth=1.0;"></li>
+      onclick="color='rgb(3, 3, 3)';composite='lighter';lineWidth=1.0;"
+      title="White"></li>
+  <li style="background-color: #111; border-color: #555;"
+      onclick="color='rgba(0,0,0,0.6)';composite='source-over';lineWidth=0.1;"
+      title="Eraser">&#9003;</li>
 </ul>
-<a href="#" id="clear" class="button" onclick="window.clear();">Clear</a>
-<a href="#" id="share" class="button" onclick="window.share();">Share Image</a>
-<a href="#" id="download" class="button" onclick="window.download();">Download</a>
-<canvas id=c width=800 height=600></canvas>
-<noscript>noscript, no fun.</noscript>
+
+<!-- ── Canvas ─────────────────────────────────────────────────────────────── -->
+<canvas id="c" width="800" height="600"></canvas>
+
+<!-- ── Settings panel ─────────────────────────────────────────────────────── -->
+<div id="settings-panel">
+  <div class="panel-header">
+    <span>SETTINGS</span>
+    <button id="panel-close" title="Close">&#10005;</button>
+  </div>
+
+  <div class="panel-content">
+
+    <!-- Profiles -->
+    <div class="panel-section">
+      <h3 class="section-title">PROFILES</h3>
+      <div class="form-row">
+        <input type="text" id="profile-name" placeholder="New profile name…" />
+        <button id="save-profile-btn"   class="btn-neon">Save</button>
+      </div>
+      <div class="form-row">
+        <select id="profile-select"></select>
+      </div>
+      <div class="form-row btn-row">
+        <button id="load-profile-btn"   class="btn-neon flex1">Load</button>
+        <button id="delete-profile-btn" class="btn-danger flex1">Delete</button>
+      </div>
+    </div>
+
+    <!-- Brush colour -->
+    <div class="panel-section">
+      <h3 class="section-title">BRUSH COLOUR</h3>
+      <div class="form-row color-row">
+        <label>Colour</label>
+        <input type="color" id="custom-color" value="#ff2200" />
+      </div>
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Intensity</label>
+          <span id="intensity-val" class="slider-val">5</span>
+        </div>
+        <input type="range" id="color-intensity" min="1" max="20" value="5" step="1" />
+        <div class="slider-hints"><span>Subtle</span><span>Intense</span></div>
+        <p class="hint">Controls how much colour each particle adds. Low = smoky, high = vivid.</p>
+      </div>
+      <div class="form-row">
+        <label>Blend Mode</label>
+        <select id="blend-mode">
+          <option value="lighter">Lighter (Glow)</option>
+          <option value="screen">Screen</option>
+          <option value="color-dodge">Colour Dodge</option>
+          <option value="overlay">Overlay</option>
+          <option value="source-over">Normal</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Particle physics -->
+    <div class="panel-section">
+      <h3 class="section-title">PARTICLE PHYSICS</h3>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Emission Rate</label>
+          <span id="emission-rate-val" class="slider-val">10</span>
+        </div>
+        <input type="range" id="emission-rate" min="1" max="50" value="10" step="1" />
+        <div class="slider-hints"><span>1</span><span>50</span></div>
+        <p class="hint">Particles spawned per frame while drawing.</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Initial Velocity</label>
+          <span id="init-velocity-val" class="slider-val">10.0</span>
+        </div>
+        <input type="range" id="init-velocity" min="1" max="30" value="10" step="0.5" />
+        <div class="slider-hints"><span>1</span><span>30</span></div>
+        <p class="hint">How fast particles burst out when spawned.</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Damping</label>
+          <span id="damping-val" class="slider-val">0.80</span>
+        </div>
+        <input type="range" id="damping" min="0.10" max="1.00" value="0.80" step="0.01" />
+        <div class="slider-hints"><span>0.10 (fast stop)</span><span>1.00 (no drag)</span></div>
+        <p class="hint">How quickly velocity bleeds off each frame.</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Turbulence</label>
+          <span id="noise-strength-val" class="slider-val">4.0</span>
+        </div>
+        <input type="range" id="noise-strength" min="0" max="20" value="4" step="0.5" />
+        <div class="slider-hints"><span>0 (straight)</span><span>20 (chaotic)</span></div>
+        <p class="hint">Strength of the Perlin noise field steering particles.</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Particle Lifetime</label>
+          <span id="max-age-val" class="slider-val">100</span>
+        </div>
+        <input type="range" id="max-age" min="10" max="500" value="100" step="10" />
+        <div class="slider-hints"><span>10</span><span>500</span></div>
+        <p class="hint">Frames a particle lives before vanishing.</p>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Particle Size</label>
+          <span id="particle-size-val" class="slider-val">0.50</span>
+        </div>
+        <input type="range" id="particle-size" min="0.10" max="5.00" value="0.50" step="0.10" />
+        <div class="slider-hints"><span>0.1 (dot)</span><span>5.0 (blob)</span></div>
+        <p class="hint">Radius of each rendered particle dot.</p>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="panel-section">
+      <h3 class="section-title">CANVAS</h3>
+      <div class="form-row color-row">
+        <label>Background</label>
+        <input type="color" id="bg-color" value="#000000" />
+        <button id="apply-bg-btn" class="btn-neon">Apply</button>
+      </div>
+      <button id="clear-canvas-btn" class="btn-danger btn-full">&#10006; Clear Canvas</button>
+    </div>
+
+    <!-- Export -->
+    <div class="panel-section">
+      <h3 class="section-title">EXPORT</h3>
+
+      <!-- Resolution scale -->
+      <div class="slider-group">
+        <div class="slider-label-row">
+          <label>Resolution Scale</label>
+        </div>
+        <select id="export-scale" style="width:100%;margin-bottom:6px;">
+          <option value="1">1× — Screen size</option>
+          <option value="2" selected>2× — ~4K</option>
+          <option value="4">4× — ~8K</option>
+          <option value="6">6× — ~12K</option>
+          <option value="8">8× — ~16K</option>
+        </select>
+        <div id="export-dims" class="export-dims">— × — px</div>
+        <div id="export-warning" class="export-warn"></div>
+        <p class="hint">PNG &amp; JPEG replay your stroke history onto an offscreen canvas at the chosen size. SVG is always infinite-resolution vector.</p>
+      </div>
+
+      <!-- Raster exports -->
+      <div class="btn-col">
+        <button id="download-png-btn"  class="btn-neon btn-full">&#8595; Download PNG</button>
+        <button id="download-jpeg-btn" class="btn-neon btn-full">&#8595; Download JPEG</button>
+      </div>
+
+      <!-- SVG export -->
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,200,255,0.1);">
+        <button id="download-svg-btn" class="btn-svg btn-full">&#10022; Export SVG (vector)</button>
+        <p class="hint" style="margin-top:6px;">True vector — scalable to any size. Opens in Illustrator, Inkscape, Figma. Blend mode uses <em>screen</em> (visually identical to <em>lighter</em> for these colour values).</p>
+      </div>
+
+      <!-- Recording status -->
+      <div class="recording-row">
+        <span id="particle-count" class="particle-count">No drawing data yet</span>
+        <button id="reset-svg-btn" class="btn-ghost" title="Reset recording without clearing the canvas">&#8635; Reset</button>
+      </div>
+    </div>
+
+  </div><!-- /panel-content -->
+</div><!-- /settings-panel -->
+
+<!-- ── Toast notification ─────────────────────────────────────────────────── -->
+<div id="notification"></div>
+
+<noscript>JavaScript is required.</noscript>
+
 <script src="jquery.js"></script>
 <script src="input.js"></script>
 <script src="clock.js"></script>
 <script src="common.js"></script>
 <script src="noise.js"></script>
 <script src="art_neon.js"></script>
-<script type="text/javascript" src="http://platform.twitter.com/widgets.js" async defer></script>
-<script type="text/javascript" src="https://apis.google.com/js/plusone.js" async defer></script>
-<script type="text/javascript">
-
-  var _gaq = _gaq || [];
-  _gaq.push(['_setAccount', 'UA-5205069-2']);
-  _gaq.push(['_trackPageview']);
-
-  (function() {
-    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-  })();
-
-</script>
+<script src="menu.js"></script>
 </body>
 </html>
