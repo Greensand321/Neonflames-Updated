@@ -255,18 +255,29 @@
         }
     }
 
-    /** Particle count badge. */
+    /** Particle count badge — shows mode-appropriate recording stats. */
     function updateParticleCount() {
-        var pts    = window.svgHistory     ? window.svgHistory.length     : 0;
-        var frames = window.drawTrajectory ? window.drawTrajectory.length : 0;
-        var el     = document.getElementById('particle-count');
+        var el = document.getElementById('particle-count');
         if (!el) return;
-        if (frames > 0) {
-            el.textContent = frames.toLocaleString() + ' frames · ' + pts.toLocaleString() + ' pts';
-        } else if (pts > 0) {
-            el.textContent = pts.toLocaleString() + ' pts recorded';
+        var frames = window.drawTrajectory ? window.drawTrajectory.length : 0;
+        if (window.renderMode === 'path') {
+            var pathCount = window.completedPaths ? window.completedPaths.length : 0;
+            if (frames > 0) {
+                el.textContent = frames.toLocaleString() + ' frames \xb7 ' + pathCount.toLocaleString() + ' paths';
+            } else if (pathCount > 0) {
+                el.textContent = pathCount.toLocaleString() + ' paths recorded';
+            } else {
+                el.textContent = 'No paths yet \u2014 draw to record';
+            }
         } else {
-            el.textContent = 'No drawing data yet';
+            var pts = window.svgHistory ? window.svgHistory.length : 0;
+            if (frames > 0) {
+                el.textContent = frames.toLocaleString() + ' frames \xb7 ' + pts.toLocaleString() + ' pts';
+            } else if (pts > 0) {
+                el.textContent = pts.toLocaleString() + ' pts recorded';
+            } else {
+                el.textContent = 'No drawing data yet';
+            }
         }
     }
 
@@ -336,22 +347,128 @@
         return lines.join('\n');
     }
 
+    // ── Path SVG helpers ─────────────────────────────────────────────────────
+
+    /** Convert an array of {x,y} points to a Catmull-Rom cubic Bezier SVG path string. */
+    function catmullRomToSVGPath(pts) {
+        if (pts.length < 2) return '';
+        var d = 'M ' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
+        for (var i = 0; i < pts.length - 1; i++) {
+            var p0 = pts[Math.max(0, i - 1)];
+            var p1 = pts[i];
+            var p2 = pts[i + 1];
+            var p3 = pts[Math.min(pts.length - 1, i + 2)];
+            var cp1x = p1.x + (p2.x - p0.x) / 6;
+            var cp1y = p1.y + (p2.y - p0.y) / 6;
+            var cp2x = p2.x - (p3.x - p1.x) / 6;
+            var cp2y = p2.y - (p3.y - p1.y) / 6;
+            d += ' C ' + cp1x.toFixed(1) + ',' + cp1y.toFixed(1)
+               + ' ' + cp2x.toFixed(1) + ',' + cp2y.toFixed(1)
+               + ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+        }
+        return d;
+    }
+
+    /**
+     * Build an SVG string from completedPaths (Path mode).
+     * Each trajectory becomes a Catmull-Rom Bezier <path> with feGaussianBlur glow.
+     * mix-blend-mode is on leaf <path> elements only — NOT on <g> — to avoid
+     * the CSS isolation problem (same reason as the dot-mode fix).
+     */
+    function buildPathSVGString(paths, w, h, bgColor) {
+        if (!paths || paths.length === 0) return null;
+
+        // One filter per unique particle-size radius value
+        var blurMap = Object.create(null);
+        var filterDefs = [];
+        var filterId = 0;
+        for (var i = 0; i < paths.length; i++) {
+            var key = paths[i].r.toFixed(2);
+            if (!blurMap[key]) {
+                var fid = 'glow' + filterId++;
+                blurMap[key] = fid;
+                var sd = Math.max(0.5, paths[i].r * 2.5).toFixed(1);
+                filterDefs.push(
+                    '<filter id="' + fid + '" x="-200%" y="-200%" width="500%" height="500%">'
+                    + '<feGaussianBlur in="SourceGraphic" stdDeviation="' + sd + '"/>'
+                    + '</filter>'
+                );
+            }
+        }
+
+        var lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<svg xmlns="http://www.w3.org/2000/svg"',
+            '     width="' + w + '" height="' + h + '"',
+            '     viewBox="0 0 ' + w + ' ' + h + '">',
+            '<defs>'
+        ].concat(filterDefs).concat([
+            '</defs>',
+            '<style>.ps{mix-blend-mode:screen;mix-blend-mode:plus-lighter}</style>',
+            '<rect width="' + w + '" height="' + h + '" fill="' + (bgColor || '#000') + '"/>'
+        ]);
+
+        var curFill = null, curComp = null, inGroup = false;
+        for (var j = 0; j < paths.length; j++) {
+            var path = paths[j];
+            if (!path.pts || path.pts.length < 2) continue;
+            var d   = catmullRomToSVGPath(path.pts);
+            if (!d) continue;
+            var fid2 = blurMap[path.r.toFixed(2)];
+            var lw  = Math.max(1.5, path.r * 3).toFixed(1);
+            if (path.comp === 'lighter') {
+                // Group by stroke colour — NO blend mode on <g> (avoids isolation)
+                if (path.color !== curFill || curComp !== 'lighter') {
+                    if (inGroup) lines.push('</g>');
+                    lines.push('<g stroke="' + path.color + '" fill="none">');
+                    curFill = path.color; curComp = 'lighter'; inGroup = true;
+                }
+                lines.push('<path class="ps" stroke-width="' + lw
+                    + '" filter="url(#' + fid2 + ')" d="' + d + '"/>');
+            } else {
+                if (inGroup) { lines.push('</g>'); inGroup = false; curFill = null; curComp = null; }
+                lines.push('<path stroke="' + path.color + '" stroke-width="' + lw
+                    + '" fill="none" d="' + d + '"/>');
+            }
+        }
+        if (inGroup) lines.push('</g>');
+        lines.push('</svg>');
+        return lines.join('\n');
+    }
+
     // ── SVG export ───────────────────────────────────────────────────────────
 
     function exportSVG() {
-        var history = window.svgHistory;
-        if (!history || history.length === 0) {
-            showNotification('Draw something first, then export SVG.'); return;
-        }
-        showNotification('Building SVG…', true);
+        var isPath = window.renderMode === 'path';
 
-        setTimeout(function () {
-            var svg  = buildSVGString(history, window.logW, window.logH, window.svgBgColor || '#000');
-            var blob = new Blob([svg], {type: 'image/svg+xml'});
-            downloadBlob(blob, 'neonflames.svg');
-            hideNotification();
-            showNotification('SVG saved — ' + history.length.toLocaleString() + ' particles.');
-        }, 60);
+        if (isPath) {
+            var paths = window.completedPaths;
+            if (!paths || paths.length === 0) {
+                showNotification('Draw something in Path mode first, then export SVG.'); return;
+            }
+            showNotification('Building path SVG\u2026', true);
+            setTimeout(function () {
+                var svg  = buildPathSVGString(paths, window.logW, window.logH, window.svgBgColor || '#000');
+                if (!svg) { hideNotification(); showNotification('No path data to export.'); return; }
+                var blob = new Blob([svg], {type: 'image/svg+xml'});
+                downloadBlob(blob, 'neonflames_paths.svg');
+                hideNotification();
+                showNotification('SVG saved \u2014 ' + paths.length.toLocaleString() + ' paths.');
+            }, 60);
+        } else {
+            var history = window.svgHistory;
+            if (!history || history.length === 0) {
+                showNotification('Draw something first, then export SVG.'); return;
+            }
+            showNotification('Building SVG\u2026', true);
+            setTimeout(function () {
+                var svg  = buildSVGString(history, window.logW, window.logH, window.svgBgColor || '#000');
+                var blob = new Blob([svg], {type: 'image/svg+xml'});
+                downloadBlob(blob, 'neonflames.svg');
+                hideNotification();
+                showNotification('SVG saved \u2014 ' + history.length.toLocaleString() + ' particles.');
+            }, 60);
+        }
     }
 
     // ── Colour scaling helper ────────────────────────────────────────────────
@@ -396,12 +513,17 @@
             return;
         }
 
-        // >1× — prefer simulation, fall back to SVG render
+        // >1× — prefer simulation re-run, fall back to SVG render
         var traj    = window.drawTrajectory;
         var history = window.svgHistory;
+        var isPath  = window.renderMode === 'path';
 
         if (traj && traj.length > 0) {
-            exportRasterViaSim(traj, d, mimeType, name);
+            if (isPath) {
+                exportRasterViaPathSim(traj, d, mimeType, name);
+            } else {
+                exportRasterViaSim(traj, d, mimeType, name);
+            }
         } else if (history && history.length > 0) {
             exportRasterViaSVG(history, d, mimeType, name);
         } else {
@@ -544,6 +666,125 @@
         }, 60);
     }
 
+    // ── Path-mode simulation-based hi-res export ─────────────────────────────
+    //
+    // Same trajectory re-simulation as dot mode, but draws line segments
+    // (moveTo/lineTo/stroke with round caps) instead of filled circles.
+    // Line width is intentionally NOT scaled — keeps strokes hair-thin at
+    // high resolution for the same filamentary quality as the unscaled dot radius.
+
+    function exportRasterViaPathSim(traj, d, mimeType, filename) {
+        var scale = exportScale;
+        showNotification('Generating hi-res noise field\u2026', true);
+
+        setTimeout(function () {
+            var MAX_N = 4096;
+            var nW = d.w, nH = d.h;
+            if (nW > MAX_N || nH > MAX_N) {
+                if (nW >= nH) { nW = MAX_N; nH = Math.max(1, Math.round(MAX_N * d.h / d.w)); }
+                else          { nH = MAX_N; nW = Math.max(1, Math.round(MAX_N * d.w / d.h)); }
+            }
+            var octaves = Math.min(14, 8 + Math.ceil(Math.log2(scale)));
+            var nData   = makeOctaveNoise(nW, nH, octaves)
+                              .getContext('2d')
+                              .getImageData(0, 0, nW, nH).data;
+            var nSx = nW / d.w, nSy = nH / d.h;
+
+            function getNHR(x, y, ch) {
+                var nx = Math.max(0, Math.min(nW - 1, ~~(x * nSx)));
+                var ny = Math.max(0, Math.min(nH - 1, ~~(y * nSy)));
+                return nData[(nx + ny * nW) * 4 + ch] / 127 - 1.0;
+            }
+
+            var oc = document.createElement('canvas');
+            oc.width = d.w; oc.height = d.h;
+            oc.style.display = 'none';
+            document.body.appendChild(oc);
+            var octx = oc.getContext('2d');
+            octx.fillStyle = window.svgBgColor || '#000';
+            octx.fillRect(0, 0, d.w, d.h);
+            octx.lineCap  = 'round';
+            octx.lineJoin = 'round';
+
+            var cCache = Object.create(null);
+            function getSC(c) { return cCache[c] || (cCache[c] = scaleColor(c, scale)); }
+
+            var sim   = [];
+            var CHUNK = 20;
+            var curCp = null, curC = null, curLW = null;
+
+            showNotification('Re-simulating paths\u2026 0%', true);
+            setTimeout(function () { runChunk(0); }, 0);
+
+            function runChunk(startFrame) {
+                var endFrame = Math.min(startFrame + CHUNK, traj.length);
+
+                for (var fi = startFrame; fi < endFrame; fi++) {
+                    var fr  = traj[fi];
+                    var sc  = getSC(fr.c);
+                    var ns  = fr.ns * scale;
+                    var idx = (fr.idx !== undefined ? fr.idx : fr.iv) * scale;
+                    var idy = (fr.idy !== undefined ? fr.idy : fr.iv) * scale;
+                    var fz  = (fr.fz  !== undefined ? fr.fz  : 0)     * scale;
+                    var emit= Math.round(fr.er * scale);
+                    var fx  = fr.x * scale, fy = fr.y * scale;
+                    var cp  = fr.cp || 'lighter';
+                    var lw  = Math.max(1.5, fr.ps * 2); // intentionally unscaled
+
+                    for (var j = 0; j < emit; j++) {
+                        sim.push({
+                            vx:    (Math.random() - 0.5) * idx * 2 + (Math.random() - 0.5) * fz * 2,
+                            vy:    (Math.random() - 0.5) * idy * 2 + (Math.random() - 0.5) * fz * 2,
+                            x: fx, y: fy, age: 0,
+                            prevX: fx, prevY: fy,
+                            ma: fr.ma, damp: fr.d, ns: ns,
+                            c: sc, cp: cp, lw: lw
+                        });
+                    }
+
+                    var alive = [];
+                    for (var k = 0; k < sim.length; k++) {
+                        var p  = sim[k];
+                        p.vx   = p.vx * p.damp + getNHR(p.x, p.y, 0) * p.ns;
+                        p.vy   = p.vy * p.damp + getNHR(p.x, p.y, 1) * p.ns;
+                        var nx2 = p.x + p.vx;
+                        var ny2 = p.y + p.vy;
+                        p.age++;
+
+                        if (p.cp !== curCp) { octx.globalCompositeOperation = curCp = p.cp; }
+                        if (p.c  !== curC)  { octx.strokeStyle = curC = p.c; }
+                        if (p.lw !== curLW) { octx.lineWidth   = curLW = p.lw; }
+                        octx.beginPath();
+                        octx.moveTo(p.prevX, p.prevY);
+                        octx.lineTo(nx2, ny2);
+                        octx.stroke();
+
+                        p.prevX = nx2; p.prevY = ny2;
+                        p.x = nx2;     p.y = ny2;
+                        if (p.age < p.ma) alive.push(p);
+                    }
+                    sim = alive;
+                }
+
+                if (endFrame < traj.length) {
+                    var pct = Math.round(endFrame / traj.length * 100);
+                    showNotification('Re-simulating paths\u2026 ' + pct + '%', true);
+                    setTimeout(function () { runChunk(endFrame); }, 0);
+                } else {
+                    showNotification('Encoding\u2026', true);
+                    setTimeout(function () {
+                        oc.toBlob(function (blob) {
+                            downloadBlob(blob, filename);
+                            document.body.removeChild(oc);
+                            hideNotification();
+                            showNotification('Saved ' + d.w.toLocaleString() + ' \xd7 ' + d.h.toLocaleString() + ' ' + filename.split('.').pop().toUpperCase());
+                        }, mimeType, 0.92);
+                    }, 0);
+                }
+            }
+        }, 60);
+    }
+
     // ── SVG-render fallback (no trajectory data) ─────────────────────────────
 
     function exportRasterViaSVG(history, d, mimeType, filename) {
@@ -592,6 +833,18 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function () {
+
+        // Mode toggle (Dot ↔ Path)
+        document.getElementById('mode-toggle').addEventListener('click', function () {
+            window.renderMode = (window.renderMode === 'path') ? 'particle' : 'path';
+            var isPath = window.renderMode === 'path';
+            this.textContent = isPath ? '\u2307 Path Mode' : '\u25c9 Dot Mode';
+            this.classList.toggle('path-active', isPath);
+            updateParticleCount();
+            showNotification(isPath
+                ? 'Path mode \u2014 trajectories recorded as smooth curves.'
+                : 'Dot mode \u2014 classic particle accumulation.');
+        });
 
         // Panel toggle
         document.getElementById('menu-toggle').addEventListener('click', togglePanel);
@@ -659,8 +912,9 @@
         document.getElementById('reset-svg-btn').addEventListener('click', function () {
             window.svgHistory     = [];
             window.drawTrajectory = [];
+            window.completedPaths = [];
             updateParticleCount();
-            showNotification('Recording reset — future strokes will be captured.');
+            showNotification('Recording reset \u2014 future strokes will be captured.');
         });
 
         // Initialise

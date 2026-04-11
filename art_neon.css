@@ -93,6 +93,33 @@ noscript { color: white; }
   box-shadow: 0 0 10px rgba(0,200,255,0.2);
 }
 
+/* ── Mode toggle button ──────────────────────────────────────────────────── */
+#mode-toggle {
+  font-family: 'Michroma', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #aac4d0;
+  background: rgba(0,200,255,0.06);
+  border: 1px solid rgba(0,200,255,0.3);
+  border-radius: 5px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+#mode-toggle:hover {
+  color: #cc88ff;
+  border-color: rgba(160,80,255,0.7);
+  background: rgba(140,60,255,0.12);
+  text-shadow: 0 0 8px rgba(160,80,255,0.7);
+}
+#mode-toggle.path-active {
+  color: #cc88ff;
+  border-color: rgba(160,80,255,0.8);
+  background: rgba(140,60,255,0.14);
+  text-shadow: 0 0 8px rgba(160,80,255,0.6);
+  box-shadow: 0 0 10px rgba(160,80,255,0.2);
+}
+
 /* ── Colour swatches ─────────────────────────────────────────────────────── */
 #colors {
   position: fixed;
