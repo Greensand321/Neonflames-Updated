@@ -23,7 +23,8 @@ function clear(){
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = svgBgColor;
     ctx.fillRect(0, 0, window.logW, window.logH);
-    svgHistory = [];
+    svgHistory     = [];
+    drawTrajectory = [];
 }
 
 function downloadJPEG(){
@@ -53,6 +54,14 @@ function fuzzy(range, base){
 
 timer.ontick = function(td){
     if(input.mouse.down){
+        // Record this frame's settings for hi-res re-simulation
+        drawTrajectory.push({
+            x: input.mouse.x, y: input.mouse.y,
+            er: emissionRate,  ps: particleSize,
+            iv: initVelocity,  d:  damping,
+            ns: noiseStrength, ma: max_age,
+            c:  color,         cp: composite
+        });
         for(var i = 0; i < emissionRate; i++){
             particles.push({
                 vx: fuzzy(initVelocity),

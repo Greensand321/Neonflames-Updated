@@ -219,11 +219,17 @@
 
     /** Particle count badge. */
     function updateParticleCount() {
-        var count = window.svgHistory ? window.svgHistory.length : 0;
-        var el    = document.getElementById('particle-count');
-        if (el) el.textContent = count > 0
-            ? count.toLocaleString() + ' pts recorded'
-            : 'No drawing data yet';
+        var pts    = window.svgHistory     ? window.svgHistory.length     : 0;
+        var frames = window.drawTrajectory ? window.drawTrajectory.length : 0;
+        var el     = document.getElementById('particle-count');
+        if (!el) return;
+        if (frames > 0) {
+            el.textContent = frames.toLocaleString() + ' frames · ' + pts.toLocaleString() + ' pts';
+        } else if (pts > 0) {
+            el.textContent = pts.toLocaleString() + ' pts recorded';
+        } else {
+            el.textContent = 'No drawing data yet';
+        }
     }
 
     // ── SVG string builder ───────────────────────────────────────────────────
@@ -310,69 +316,223 @@
         }, 60);
     }
 
+    // ── Colour scaling helper ────────────────────────────────────────────────
+    //
+    // Multiplies each RGB channel by `factor` (clamped to 255).
+    // At 8× export we emit 8× more particles spread over 64× more area, so
+    // per-pixel density is 1/8 of screen.  Scaling colour up by the export
+    // factor restores the same apparent brightness / glow.
+
+    function scaleColor(colorStr, factor) {
+        var m = colorStr.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+        if (!m) return colorStr;
+        var r = Math.min(255, +m[1] * factor | 0);
+        var g = Math.min(255, +m[2] * factor | 0);
+        var b = Math.min(255, +m[3] * factor | 0);
+        return (m[4] !== undefined)
+            ? 'rgba(' + r + ',' + g + ',' + b + ',' + m[4] + ')'
+            : 'rgb('  + r + ',' + g + ',' + b + ')';
+    }
+
     // ── High-resolution raster export ────────────────────────────────────────
     //
-    // scale = 1 → grab the live canvas directly (already HiDPI quality).
+    // scale = 1  →  capture the live canvas pixel-for-pixel (HiDPI quality).
     //
-    // scale > 1 → build the SVG string, load it into a temporary <img> via a
-    // Blob URL, then drawImage onto a hidden <canvas> at the target dimensions.
-    // The browser's own SVG renderer handles blend modes at full target
-    // resolution — this is why the output matches what you see on screen and
-    // avoids the "visible blobs" issue of scaling raw particle positions up.
+    // scale > 1, trajectory exists  →  RE-SIMULATE particle physics at target
+    //   dimensions using a fresh high-frequency noise field.  This produces
+    //   genuinely new fine structure — hair-thin filamentary traces through a
+    //   richer noise field — rather than scaling up existing particle positions.
+    //   Key: particle radius is intentionally NOT scaled (stays at ~0.5 px),
+    //   so at 8× each trace is 1/8 the relative width → nebula / gas-cloud detail.
+    //
+    // scale > 1, no trajectory  →  SVG-render fallback (legacy drawings).
 
     function exportRaster(mimeType) {
-        var history = window.svgHistory;
-        if (!history || history.length === 0) {
-            showNotification('Draw something first, then export.'); return;
-        }
-
         var d    = getExportDims();
         var ext  = mimeType === 'image/jpeg' ? 'jpg' : 'png';
         var name = 'neonflames_' + d.w + 'x' + d.h + '.' + ext;
 
-        // scale = 1: export the live canvas pixel-for-pixel (fastest path).
+        // 1× — just grab the live canvas
         if (exportScale === 1) {
             canvas.toBlob(function (blob) { downloadBlob(blob, name); }, mimeType, 0.92);
             return;
         }
 
-        showNotification('Rendering ' + d.w.toLocaleString() + ' × ' + d.h.toLocaleString() + '…', true);
+        // >1× — prefer simulation, fall back to SVG render
+        var traj    = window.drawTrajectory;
+        var history = window.svgHistory;
+
+        if (traj && traj.length > 0) {
+            exportRasterViaSim(traj, d, mimeType, name);
+        } else if (history && history.length > 0) {
+            exportRasterViaSVG(history, d, mimeType, name);
+        } else {
+            showNotification('Draw something first, then export.');
+        }
+    }
+
+    // ── Simulation-based hi-res export ───────────────────────────────────────
+
+    function exportRasterViaSim(traj, d, mimeType, filename) {
+        var scale = exportScale;
+        showNotification('Generating hi-res noise field\u2026', true);
+
+        setTimeout(function () {
+            // Build high-frequency noise at capped dimensions to avoid
+            // running out of memory at extreme scales.
+            var MAX_N = 4096;
+            var nW = d.w, nH = d.h;
+            if (nW > MAX_N || nH > MAX_N) {
+                if (nW >= nH) { nW = MAX_N; nH = Math.max(1, Math.round(MAX_N * d.h / d.w)); }
+                else          { nH = MAX_N; nW = Math.max(1, Math.round(MAX_N * d.w / d.h)); }
+            }
+            // More octaves = finer detail at higher scales
+            var octaves = Math.min(14, 8 + Math.ceil(Math.log2(scale)));
+            var nData   = makeOctaveNoise(nW, nH, octaves)
+                              .getContext('2d')
+                              .getImageData(0, 0, nW, nH).data;
+            var nSx = nW / d.w, nSy = nH / d.h;
+
+            function getNHR(x, y, ch) {
+                var nx = Math.max(0, Math.min(nW - 1, ~~(x * nSx)));
+                var ny = Math.max(0, Math.min(nH - 1, ~~(y * nSy)));
+                return nData[(nx + ny * nW) * 4 + ch] / 127 - 1.0;
+            }
+
+            // Output canvas
+            var oc = document.createElement('canvas');
+            oc.width = d.w; oc.height = d.h;
+            oc.style.display = 'none';
+            document.body.appendChild(oc);
+            var octx = oc.getContext('2d');
+            octx.fillStyle = window.svgBgColor || '#000';
+            octx.fillRect(0, 0, d.w, d.h);
+
+            // Cache scaled colours so we only parse the rgb string once each
+            var cCache = Object.create(null);
+            function getSC(c) { return cCache[c] || (cCache[c] = scaleColor(c, scale)); }
+
+            var sim    = [];        // live particles
+            var CHUNK  = 20;       // frames processed per async slice
+            var curCp  = null, curC = null;
+
+            showNotification('Re-simulating\u2026 0%', true);
+            setTimeout(function () { runChunk(0); }, 0);
+
+            function runChunk(startFrame) {
+                var endFrame = Math.min(startFrame + CHUNK, traj.length);
+
+                for (var fi = startFrame; fi < endFrame; fi++) {
+                    var fr    = traj[fi];
+                    var sc    = getSC(fr.c);
+                    var ns    = fr.ns * scale;
+                    var iv    = fr.iv * scale;
+                    var emit  = Math.round(fr.er * scale);
+                    var fx    = fr.x * scale, fy = fr.y * scale;
+                    var cp    = fr.cp || 'lighter';
+
+                    // Spawn this frame's particles
+                    for (var j = 0; j < emit; j++) {
+                        sim.push({
+                            vx: (Math.random() - 0.5) * iv * 2,
+                            vy: (Math.random() - 0.5) * iv * 2,
+                            x: fx, y: fy, age: 0,
+                            ma: fr.ma, damp: fr.d, ns: ns,
+                            c: sc, cp: cp,
+                            r: fr.ps   // intentionally unscaled — key for fine detail
+                        });
+                    }
+
+                    // Physics update + batch draw (group by composite+colour+radius
+                    // to minimise canvas state changes and GPU path submissions)
+                    var alive   = [];
+                    var batches = Object.create(null);
+
+                    for (var k = 0; k < sim.length; k++) {
+                        var p = sim[k];
+                        p.vx = p.vx * p.damp + getNHR(p.x, p.y, 0) * p.ns;
+                        p.vy = p.vy * p.damp + getNHR(p.x, p.y, 1) * p.ns;
+                        p.x += p.vx; p.y += p.vy; p.age++;
+
+                        if (p.x > -p.r && p.x < d.w + p.r &&
+                            p.y > -p.r && p.y < d.h + p.r) {
+                            var bk = p.cp + '\x00' + p.c + '\x00' + p.r;
+                            if (!batches[bk]) {
+                                batches[bk] = { cp: p.cp, c: p.c, r: p.r, xs: [], ys: [] };
+                            }
+                            batches[bk].xs.push(p.x);
+                            batches[bk].ys.push(p.y);
+                        }
+
+                        if (p.age < p.ma) alive.push(p);
+                    }
+                    sim = alive;
+
+                    // Flush draw batches for this frame
+                    var bks = Object.keys(batches);
+                    for (var bi = 0; bi < bks.length; bi++) {
+                        var b  = batches[bks[bi]];
+                        var br = b.r;
+                        if (b.cp !== curCp) { octx.globalCompositeOperation = curCp = b.cp; }
+                        if (b.c  !== curC)  { octx.fillStyle = curC = b.c; }
+                        octx.beginPath();
+                        for (var pi = 0; pi < b.xs.length; pi++) {
+                            octx.moveTo(b.xs[pi] + br, b.ys[pi]);
+                            octx.arc(b.xs[pi], b.ys[pi], br, 0, Math.PI * 2, true);
+                        }
+                        octx.fill();
+                    }
+                }
+
+                if (endFrame < traj.length) {
+                    var pct = Math.round(endFrame / traj.length * 100);
+                    showNotification('Re-simulating\u2026 ' + pct + '%', true);
+                    setTimeout(function () { runChunk(endFrame); }, 0);
+                } else {
+                    showNotification('Encoding\u2026', true);
+                    setTimeout(function () {
+                        oc.toBlob(function (blob) {
+                            downloadBlob(blob, filename);
+                            document.body.removeChild(oc);
+                            hideNotification();
+                            showNotification('Saved ' + d.w.toLocaleString() + ' \xd7 ' + d.h.toLocaleString() + ' ' + filename.split('.').pop().toUpperCase());
+                        }, mimeType, 0.92);
+                    }, 0);
+                }
+            }
+        }, 60);
+    }
+
+    // ── SVG-render fallback (no trajectory data) ─────────────────────────────
+
+    function exportRasterViaSVG(history, d, mimeType, filename) {
+        showNotification('Rendering ' + d.w.toLocaleString() + ' \xd7 ' + d.h.toLocaleString() + '\u2026', true);
 
         setTimeout(function () {
             var svg     = buildSVGString(history, window.logW, window.logH, window.svgBgColor || '#000');
-            var svgBlob = new Blob([svg], {type: 'image/svg+xml'});
+            var svgBlob = new Blob([svg], { type: 'image/svg+xml' });
             var svgUrl  = URL.createObjectURL(svgBlob);
 
             var img = new Image();
-
             img.onload = function () {
                 var oc = document.createElement('canvas');
-                oc.width  = d.w;
-                oc.height = d.h;
+                oc.width = d.w; oc.height = d.h;
                 oc.style.display = 'none';
                 document.body.appendChild(oc);
-
-                var octx = oc.getContext('2d');
-                // drawImage renders the SVG at the exact destination dimensions,
-                // letting the browser rasterise at full target resolution with
-                // all blend modes applied correctly.
-                octx.drawImage(img, 0, 0, d.w, d.h);
+                oc.getContext('2d').drawImage(img, 0, 0, d.w, d.h);
                 URL.revokeObjectURL(svgUrl);
-
                 oc.toBlob(function (blob) {
-                    downloadBlob(blob, name);
+                    downloadBlob(blob, filename);
                     document.body.removeChild(oc);
                     hideNotification();
-                    showNotification('Saved ' + d.w.toLocaleString() + ' × ' + d.h.toLocaleString() + ' ' + ext.toUpperCase());
+                    showNotification('Saved ' + d.w.toLocaleString() + ' \xd7 ' + d.h.toLocaleString());
                 }, mimeType, 0.92);
             };
-
             img.onerror = function () {
                 URL.revokeObjectURL(svgUrl);
                 hideNotification();
-                showNotification('Raster render failed — download the SVG and rasterise in Inkscape / Illustrator.');
+                showNotification('Render failed \u2014 try the SVG export instead.');
             };
-
             img.src = svgUrl;
         }, 60);
     }
@@ -451,9 +611,10 @@
         });
         document.getElementById('download-svg-btn').addEventListener('click', exportSVG);
 
-        // Reset SVG history without clearing the canvas
+        // Reset recording data without clearing the canvas
         document.getElementById('reset-svg-btn').addEventListener('click', function () {
-            window.svgHistory = [];
+            window.svgHistory     = [];
+            window.drawTrajectory = [];
             updateParticleCount();
             showNotification('Recording reset — future strokes will be captured.');
         });
