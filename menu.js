@@ -371,51 +371,33 @@
 
     /**
      * Build an SVG string from completedPaths (Path mode).
-     * Each trajectory becomes a Catmull-Rom Bezier <path> with feGaussianBlur glow.
-     * mix-blend-mode is on leaf <path> elements only — NOT on <g> — to avoid
-     * the CSS isolation problem (same reason as the dot-mode fix).
+     * Each trajectory becomes a Catmull-Rom Bezier <path>.
+     * Glow is achieved via mix-blend-mode:plus-lighter accumulation — same
+     * technique as dot mode.  NO filter is applied: SVG filter creates an
+     * isolated compositing buffer which prevents mix-blend-mode from compositing
+     * against the real document backdrop, making the paths invisible.
+     * mix-blend-mode is on leaf <path> elements only — NOT on <g> — for the
+     * same isolation reason documented in buildSVGString above.
      */
     function buildPathSVGString(paths, w, h, bgColor) {
         if (!paths || paths.length === 0) return null;
-
-        // One filter per unique particle-size radius value
-        var blurMap = Object.create(null);
-        var filterDefs = [];
-        var filterId = 0;
-        for (var i = 0; i < paths.length; i++) {
-            var key = paths[i].r.toFixed(2);
-            if (!blurMap[key]) {
-                var fid = 'glow' + filterId++;
-                blurMap[key] = fid;
-                var sd = Math.max(0.5, paths[i].r * 2.5).toFixed(1);
-                filterDefs.push(
-                    '<filter id="' + fid + '" x="-200%" y="-200%" width="500%" height="500%">'
-                    + '<feGaussianBlur in="SourceGraphic" stdDeviation="' + sd + '"/>'
-                    + '</filter>'
-                );
-            }
-        }
 
         var lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<svg xmlns="http://www.w3.org/2000/svg"',
             '     width="' + w + '" height="' + h + '"',
             '     viewBox="0 0 ' + w + ' ' + h + '">',
-            '<defs>'
-        ].concat(filterDefs).concat([
-            '</defs>',
             '<style>.ps{mix-blend-mode:screen;mix-blend-mode:plus-lighter}</style>',
             '<rect width="' + w + '" height="' + h + '" fill="' + (bgColor || '#000') + '"/>'
-        ]);
+        ];
 
         var curFill = null, curComp = null, inGroup = false;
         for (var j = 0; j < paths.length; j++) {
             var path = paths[j];
             if (!path.pts || path.pts.length < 2) continue;
-            var d   = catmullRomToSVGPath(path.pts);
+            var d  = catmullRomToSVGPath(path.pts);
             if (!d) continue;
-            var fid2 = blurMap[path.r.toFixed(2)];
-            var lw  = Math.max(1.5, path.r * 3).toFixed(1);
+            var lw = Math.max(1.5, path.r * 3).toFixed(1);
             if (path.comp === 'lighter') {
                 // Group by stroke colour — NO blend mode on <g> (avoids isolation)
                 if (path.color !== curFill || curComp !== 'lighter') {
@@ -423,8 +405,7 @@
                     lines.push('<g stroke="' + path.color + '" fill="none">');
                     curFill = path.color; curComp = 'lighter'; inGroup = true;
                 }
-                lines.push('<path class="ps" stroke-width="' + lw
-                    + '" filter="url(#' + fid2 + ')" d="' + d + '"/>');
+                lines.push('<path class="ps" stroke-width="' + lw + '" d="' + d + '"/>');
             } else {
                 if (inGroup) { lines.push('</g>'); inGroup = false; curFill = null; curComp = null; }
                 lines.push('<path stroke="' + path.color + '" stroke-width="' + lw
@@ -706,8 +687,11 @@
             octx.lineCap  = 'round';
             octx.lineJoin = 'round';
 
-            var cCache = Object.create(null);
-            function getSC(c) { return cCache[c] || (cCache[c] = scaleColor(c, scale)); }
+            // Path mode does NOT scale colour.
+            // In dot mode: emit×scale dots each 0.5px → density ×1/scale → need colour×scale to compensate.
+            // In path mode: emit×scale particles each tracing scale× longer paths →
+            //   coverage scales as scale² in a scale² larger canvas → density unchanged.
+            //   Scaling colour on top would make it scale× too bright.
 
             var sim   = [];
             var CHUNK = 20;
@@ -721,7 +705,7 @@
 
                 for (var fi = startFrame; fi < endFrame; fi++) {
                     var fr  = traj[fi];
-                    var sc  = getSC(fr.c);
+                    var sc  = fr.c; // use recorded colour directly — no scaling
                     var ns  = fr.ns * scale;
                     var idx = (fr.idx !== undefined ? fr.idx : fr.iv) * scale;
                     var idy = (fr.idy !== undefined ? fr.idy : fr.iv) * scale;
